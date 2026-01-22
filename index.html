@@ -2,58 +2,77 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>India Post Letter Scanner</title>
+<title>Name & Pincode Table Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-body { font-family: Arial; padding: 10px; }
-video { width: 100%; border: 2px solid black; }
-button { width: 100%; padding: 10px; margin-top: 8px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid black; padding: 6px; text-align: center; }
-th { background: #eee; }
+body {
+    font-family: Arial, sans-serif;
+    padding: 10px;
+}
+
+video {
+    width: 100%;
+    border: 2px solid black;
+    margin-bottom: 10px;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    font-size: 16px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: center;
+}
+
+th {
+    background-color: #f2f2f2;
+}
 </style>
 </head>
 
 <body>
 
-<h3>📮 India Post Barcode & Letter Scanner</h3>
+<h3>📄 Letter Name & Pincode Reader (Tabular)</h3>
 
 <video id="video" autoplay playsinline muted></video>
 
 <button onclick="startCamera()">Start Camera</button>
-<button onclick="startBarcode()">Scan India Post Barcode</button>
-<button onclick="scanLetter()">Scan Letter (Name & Pincode)</button>
+<button onclick="scanLetter()">Scan Letter & Add to Table</button>
 
 <table>
 <thead>
 <tr>
-<th>Sl No</th>
-<th>Barcode</th>
-<th>Name</th>
-<th>Pincode</th>
+    <th>Sl No</th>
+    <th>Name (First 2 Words)</th>
+    <th>Pincode</th>
 </tr>
 </thead>
-<tbody id="tbody"></tbody>
+<tbody id="tableBody">
+</tbody>
 </table>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
-let sl = 1;
-let barcodeVal = "";
-let nameVal = "";
-let pinVal = "";
+let slNo = 1;
 let stream = null;
-
 const video = document.getElementById("video");
-const codeReader = new ZXing.BrowserBarcodeReader();
-const indiaPostRegex = /^[A-Z]{2}[0-9]{9}IN$/;
 
-// 🔹 Start camera manually (IMPORTANT)
+// Start camera
 async function startCamera() {
     stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }
@@ -62,26 +81,7 @@ async function startCamera() {
     await video.play();
 }
 
-// 🔹 Barcode scanning
-function startBarcode() {
-    if (!stream) {
-        alert("Please start camera first");
-        return;
-    }
-
-    codeReader.decodeFromVideoElement(video, (result, err) => {
-        if (result) {
-            let code = result.text.toUpperCase();
-            if (indiaPostRegex.test(code)) {
-                barcodeVal = code;
-                codeReader.reset();
-                alert("India Post Barcode Detected:\n" + barcodeVal);
-            }
-        }
-    });
-}
-
-// 🔹 Letter OCR scanning
+// Scan letter using OCR
 function scanLetter() {
     if (!stream) {
         alert("Please start camera first");
@@ -97,38 +97,33 @@ function scanLetter() {
 
     Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
 
-        let clean = text.replace(/\n/g, " ").trim();
+        let cleanedText = text.replace(/\n/g, " ").trim();
 
-        // First two words only
-        let words = clean.split(/\s+/);
-        nameVal = words.slice(0, 2).join(" ");
+        // Name: first two words only
+        let words = cleanedText.split(/\s+/);
+        let name = words.slice(0, 2).join(" ");
 
-        // Indian Pincode
-        let pin = clean.match(/\b\d{6}\b/);
-        pinVal = pin ? pin[0] : "";
+        // Pincode: 6 digits
+        let pinMatch = cleanedText.match(/\b\d{6}\b/);
+        let pincode = pinMatch ? pinMatch[0] : "";
 
-        addRow();
+        addRow(name, pincode);
     });
 }
 
-// 🔹 Add row
-function addRow() {
-    if (!barcodeVal) {
-        alert("Scan barcode first");
-        return;
-    }
+// Add data to table
+function addRow(name, pincode) {
+    const tableBody = document.getElementById("tableBody");
 
-    document.getElementById("tbody").innerHTML += `
-    <tr>
-        <td>${sl++}</td>
-        <td>${barcodeVal}</td>
-        <td>${nameVal}</td>
-        <td>${pinVal}</td>
-    </tr>`;
+    const row = document.createElement("tr");
 
-    barcodeVal = "";
-    nameVal = "";
-    pinVal = "";
+    row.innerHTML = `
+        <td>${slNo++}</td>
+        <td>${name}</td>
+        <td>${pincode}</td>
+    `;
+
+    tableBody.appendChild(row);
 }
 </script>
 
