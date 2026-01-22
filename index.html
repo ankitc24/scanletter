@@ -6,17 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; padding: 10px; }
 
 #cameraBox {
-    width: 100%;
     max-width: 320px;
     height: 180px;
     border: 3px solid red;
     margin: auto;
-    position: relative;
 }
 
 video {
@@ -28,35 +27,38 @@ video {
 button {
     width: 100%;
     padding: 10px;
-    margin-top: 8px;
-    font-size: 16px;
+    margin-top: 6px;
+    font-size: 15px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 15px;
+    margin-top: 12px;
 }
 
 th, td {
     border: 1px solid black;
-    padding: 8px;
+    padding: 6px;
     text-align: center;
 }
 
-th {
-    background-color: #f2f2f2;
+th { background: #f2f2f2; }
+
+.delete-btn {
+    background: red;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
 }
 </style>
 </head>
 
 <body>
 
-<h3 align="center">📷 Scan ONLY Name & Pincode</h3>
-
-<p align="center">
-Place <b>Name</b> and <b>Pincode</b> inside the red box
-</p>
+<h3 align="center">📷 Name & Pincode Scanner</h3>
+<p align="center">Place ONLY name & pincode inside red box</p>
 
 <div id="cameraBox">
     <video id="video" autoplay playsinline muted></video>
@@ -64,13 +66,15 @@ Place <b>Name</b> and <b>Pincode</b> inside the red box
 
 <button onclick="startCamera()">Start Camera</button>
 <button onclick="scan()">Scan</button>
+<button onclick="exportExcel()">Export to Excel</button>
 
 <table>
 <thead>
 <tr>
     <th>Sl No</th>
-    <th>Name (First 2 words)</th>
-    <th>Pincode</th>
+    <th>Name (Editable)</th>
+    <th>Pincode (Editable)</th>
+    <th>Action</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -90,7 +94,6 @@ async function startCamera() {
     video.srcObject = stream;
 }
 
-// Capture ONLY center area
 function scan() {
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -98,7 +101,6 @@ function scan() {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
 
-    // Crop center (40% width, 40% height)
     const cropW = vw * 0.6;
     const cropH = vh * 0.6;
     const cropX = (vw - cropW) / 2;
@@ -106,16 +108,13 @@ function scan() {
 
     canvas.width = cropW;
     canvas.height = cropH;
-
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
     Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
 
-        // Extract first two English words
         let words = text.match(/[A-Z]+/gi);
         let name = words ? words.slice(0, 2).join(" ") : "";
 
-        // Extract 6-digit pincode
         let pinMatch = text.match(/\b\d{6}\b/);
         let pincode = pinMatch ? pinMatch[0] : "";
 
@@ -124,13 +123,23 @@ function scan() {
 }
 
 function addRow(name, pincode) {
+    const tbody = document.getElementById("tbody");
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
         <td>${sl++}</td>
-        <td>${name}</td>
-        <td>${pincode}</td>
+        <td contenteditable="true">${name}</td>
+        <td contenteditable="true">${pincode}</td>
+        <td><button class="delete-btn" onclick="this.closest('tr').remove()">Delete</button></td>
     `;
-    document.getElementById("tbody").appendChild(tr);
+
+    tbody.prepend(tr); // latest entry on top
+}
+
+function exportExcel() {
+    const table = document.querySelector("table");
+    const wb = XLSX.utils.table_to_book(table, { sheet: "Scanned Letters" });
+    XLSX.writeFile(wb, "Letter_List.xlsx");
 }
 </script>
 
