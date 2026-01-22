@@ -5,19 +5,16 @@
 <title>Letter Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- QuaggaJS for Barcode -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-
-<!-- Tesseract.js for OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-    body { font-family: Arial, sans-serif; padding: 10px; }
+    body { font-family: Arial; padding: 10px; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #000; padding: 6px; text-align: center; }
-    th { background: #f0f0f0; }
+    th, td { border: 1px solid black; padding: 6px; text-align: center; }
+    th { background: #eee; }
     video { width: 100%; border: 1px solid #000; }
-    button { padding: 10px; margin-top: 10px; }
+    button { padding: 10px; margin-top: 8px; width: 100%; }
 </style>
 </head>
 
@@ -25,36 +22,36 @@
 
 <h3>📷 Letter Barcode & Address Scanner</h3>
 
-<video id="camera" autoplay></video><br>
+<video id="camera" autoplay></video>
 
 <button onclick="startBarcode()">Scan Barcode</button>
-<button onclick="captureImage()">Scan Letter (Name & Pincode)</button>
+<button onclick="scanLetter()">Scan Letter (Name & Pincode)</button>
 
 <table>
-    <thead>
-        <tr>
-            <th>Sl No</th>
-            <th>Barcode</th>
-            <th>Name</th>
-            <th>Pincode</th>
-        </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
+<thead>
+<tr>
+    <th>Sl No</th>
+    <th>Barcode</th>
+    <th>Name</th>
+    <th>Pincode</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
 </table>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
 let slno = 1;
-let scannedBarcode = "";
-let scannedName = "";
-let scannedPincode = "";
+let barcodeValue = "";
+let nameValue = "";
+let pinValue = "";
 
-// Start camera
+// Camera start
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
 .then(stream => document.getElementById("camera").srcObject = stream);
 
-// Barcode Scanner
+// Barcode scanner
 function startBarcode() {
     Quagga.init({
         inputStream: {
@@ -63,21 +60,26 @@ function startBarcode() {
             target: document.querySelector('#camera')
         },
         decoder: {
-            readers: ["code_128_reader", "ean_reader", "ean_8_reader"]
+            readers: ["code_128_reader"]
         }
     }, function (err) {
         if (!err) Quagga.start();
     });
 
-    Quagga.onDetected(data => {
-        scannedBarcode = data.codeResult.code;
-        Quagga.stop();
-        alert("Barcode Scanned: " + scannedBarcode);
+    Quagga.onDetected(result => {
+        let code = result.codeResult.code.toUpperCase();
+        let pattern = /^[A-Z]{2}[0-9]{9}[A-Z]{2}$/;
+
+        if (pattern.test(code)) {
+            barcodeValue = code;
+            Quagga.stop();
+            alert("Valid Barcode: " + code);
+        }
     });
 }
 
-// Capture image and OCR
-function captureImage() {
+// OCR scan
+function scanLetter() {
     const video = document.getElementById("camera");
     const canvas = document.getElementById("canvas");
     canvas.width = video.videoWidth;
@@ -85,37 +87,41 @@ function captureImage() {
     canvas.getContext("2d").drawImage(video, 0, 0);
 
     Tesseract.recognize(canvas, 'eng').then(({ data: { text } }) => {
-        // Extract Name (simple logic)
-        let lines = text.split('\n').filter(l => l.trim() !== "");
-        scannedName = lines[0] || "";
 
-        // Extract Pincode (India – 6 digits)
-        let pinMatch = text.match(/\b\d{6}\b/);
-        scannedPincode = pinMatch ? pinMatch[0] : "";
+        let cleanText = text.replace(/\n/g, " ").trim();
+
+        // Name: first two words only
+        let words = cleanText.split(/\s+/);
+        nameValue = words.slice(0, 2).join(" ");
+
+        // Indian Pincode (6 digits)
+        let pinMatch = cleanText.match(/\b\d{6}\b/);
+        pinValue = pinMatch ? pinMatch[0] : "";
 
         addRow();
     });
 }
 
-// Add row to table
+// Add row
 function addRow() {
-    if (!scannedBarcode) {
-        alert("Please scan barcode first");
+    if (!barcodeValue) {
+        alert("Scan barcode first");
         return;
     }
 
-    let row = `<tr>
+    let row = `
+    <tr>
         <td>${slno++}</td>
-        <td>${scannedBarcode}</td>
-        <td>${scannedName}</td>
-        <td>${scannedPincode}</td>
+        <td>${barcodeValue}</td>
+        <td>${nameValue}</td>
+        <td>${pinValue}</td>
     </tr>`;
 
     document.getElementById("tableBody").innerHTML += row;
 
-    scannedBarcode = "";
-    scannedName = "";
-    scannedPincode = "";
+    barcodeValue = "";
+    nameValue = "";
+    pinValue = "";
 }
 </script>
 
