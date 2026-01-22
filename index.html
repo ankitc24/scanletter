@@ -2,19 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Name & Pincode Scanner</title>
+<title>India Post Envelope Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<!-- Excel Export -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; padding: 10px; }
+body {
+    font-family: Arial, sans-serif;
+    padding: 10px;
+}
 
 #cameraBox {
-    max-width: 320px;
-    height: 180px;
-    border: 3px solid red;
+    max-width: 100%;
+    height: 220px;
+    border: 3px solid #1a73e8;
     margin: auto;
 }
 
@@ -28,13 +34,13 @@ button {
     width: 100%;
     padding: 10px;
     margin-top: 6px;
-    font-size: 15px;
+    font-size: 16px;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 12px;
+    margin-top: 15px;
 }
 
 th, td {
@@ -43,7 +49,9 @@ th, td {
     text-align: center;
 }
 
-th { background: #f2f2f2; }
+th {
+    background: #f2f2f2;
+}
 
 .delete-btn {
     background: red;
@@ -57,23 +65,23 @@ th { background: #f2f2f2; }
 
 <body>
 
-<h3 align="center">📷 Name & Pincode Scanner</h3>
-<p align="center">Place ONLY name & pincode inside red box</p>
+<h3 align="center">📮 India Post Envelope Scanner</h3>
+<p align="center">Ensure <b>प्रति, Name & Pincode</b> are visible</p>
 
 <div id="cameraBox">
     <video id="video" autoplay playsinline muted></video>
 </div>
 
 <button onclick="startCamera()">Start Camera</button>
-<button onclick="scan()">Scan</button>
+<button onclick="scan()">Scan Envelope</button>
 <button onclick="exportExcel()">Export to Excel</button>
 
 <table>
 <thead>
 <tr>
     <th>Sl No</th>
-    <th>Name (Editable)</th>
-    <th>Pincode (Editable)</th>
+    <th>Name</th>
+    <th>Pincode</th>
     <th>Action</th>
 </tr>
 </thead>
@@ -84,62 +92,79 @@ th { background: #f2f2f2; }
 
 <script>
 let sl = 1;
-let stream = null;
 const video = document.getElementById("video");
 
 async function startCamera() {
-    stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-    });
-    video.srcObject = stream;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+    } catch (e) {
+        alert("Camera access denied or not available");
+    }
 }
 
 function scan() {
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
 
-    const cropW = vw * 0.6;
-    const cropH = vh * 0.6;
-    const cropX = (vw - cropW) / 2;
-    const cropY = (vh - cropH) / 2;
+    Tesseract.recognize(canvas, "hin+eng").then(({ data: { text } }) => {
 
-    canvas.width = cropW;
-    canvas.height = cropH;
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+        let lines = text
+            .split("\n")
+            .map(l => l.trim())
+            .filter(l => l !== "");
 
-    Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+        let name = "";
+        let pincode = "";
 
-        let words = text.match(/[A-Z]+/gi);
-        let name = words ? words.slice(0, 2).join(" ") : "";
+        // 🔍 Extract NAME: first English line after "प्रति"
+        for (let i = 0; i < lines.length; i++) {
+            if (/प्रति/.test(lines[i]) && lines[i + 1]) {
+                let words = lines[i + 1].match(/[A-Z]+/gi);
+                if (words && words.length >= 2) {
+                    name = words.slice(0, 2).join(" ");
+                }
+                break;
+            }
+        }
 
+        // 🔢 Extract PINCODE
         let pinMatch = text.match(/\b\d{6}\b/);
-        let pincode = pinMatch ? pinMatch[0] : "";
+        if (pinMatch) pincode = pinMatch[0];
+
+        if (!name && !pincode) {
+            alert("Name or Pincode not detected. Adjust envelope & retry.");
+            return;
+        }
 
         addRow(name, pincode);
     });
 }
 
 function addRow(name, pincode) {
-    const tbody = document.getElementById("tbody");
     const tr = document.createElement("tr");
-
     tr.innerHTML = `
         <td>${sl++}</td>
         <td contenteditable="true">${name}</td>
         <td contenteditable="true">${pincode}</td>
-        <td><button class="delete-btn" onclick="this.closest('tr').remove()">Delete</button></td>
+        <td>
+            <button class="delete-btn"
+                onclick="this.closest('tr').remove()">Delete</button>
+        </td>
     `;
-
-    tbody.prepend(tr); // latest entry on top
+    document.getElementById("tbody").prepend(tr);
 }
 
 function exportExcel() {
-    const table = document.querySelector("table");
-    const wb = XLSX.utils.table_to_book(table, { sheet: "Scanned Letters" });
-    XLSX.writeFile(wb, "Letter_List.xlsx");
+    const wb = XLSX.utils.table_to_book(
+        document.querySelector("table"),
+        { sheet: "Envelope Data" }
+    );
+    XLSX.writeFile(wb, "India_Post_Envelope_List.xlsx");
 }
 </script>
 
