@@ -5,16 +5,15 @@
 <title>Letter Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
     body { font-family: Arial; padding: 10px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid black; padding: 6px; text-align: center; }
-    th { background: #eee; }
     video { width: 100%; border: 1px solid #000; }
-    button { padding: 10px; margin-top: 8px; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #000; padding: 6px; text-align: center; }
+    th { background: #eee; }
+    button { width: 100%; padding: 10px; margin-top: 8px; }
 </style>
 </head>
 
@@ -22,9 +21,9 @@
 
 <h3>📷 Letter Barcode & Address Scanner</h3>
 
-<video id="camera" autoplay></video>
+<video id="video" autoplay playsinline></video>
 
-<button onclick="startBarcode()">Scan Barcode</button>
+<button onclick="scanBarcode()">Scan Barcode</button>
 <button onclick="scanLetter()">Scan Letter (Name & Pincode)</button>
 
 <table>
@@ -36,51 +35,53 @@
     <th>Pincode</th>
 </tr>
 </thead>
-<tbody id="tableBody"></tbody>
+<tbody id="tbody"></tbody>
 </table>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
-let slno = 1;
-let barcodeValue = "";
-let nameValue = "";
-let pinValue = "";
+let sl = 1;
+let barcodeVal = "";
+let nameVal = "";
+let pinVal = "";
 
-// Camera start
+const video = document.getElementById("video");
+
+// Start camera
 navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-.then(stream => document.getElementById("camera").srcObject = stream);
+.then(stream => video.srcObject = stream);
 
-// Barcode scanner
-function startBarcode() {
-    Quagga.init({
-        inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.querySelector('#camera')
-        },
-        decoder: {
-            readers: ["code_128_reader"]
-        }
-    }, function (err) {
-        if (!err) Quagga.start();
+// Barcode scanning (ZXing native)
+async function scanBarcode() {
+
+    if (!('BarcodeDetector' in window)) {
+        alert("Barcode scanning not supported on this browser");
+        return;
+    }
+
+    const detector = new BarcodeDetector({
+        formats: ['code_128']
     });
 
-    Quagga.onDetected(result => {
-        let code = result.codeResult.code.toUpperCase();
-        let pattern = /^[A-Z]{2}[0-9]{9}[A-Z]{2}$/;
+    const barcodeRegex = /^[A-Z]{2}[0-9]{9}[A-Z]{2}$/;
 
-        if (pattern.test(code)) {
-            barcodeValue = code;
-            Quagga.stop();
-            alert("Valid Barcode: " + code);
+    const interval = setInterval(async () => {
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0) {
+            let code = barcodes[0].rawValue.toUpperCase();
+
+            if (barcodeRegex.test(code)) {
+                barcodeVal = code;
+                clearInterval(interval);
+                alert("Valid Barcode: " + barcodeVal);
+            }
         }
-    });
+    }, 500);
 }
 
 // OCR scan
 function scanLetter() {
-    const video = document.getElementById("camera");
     const canvas = document.getElementById("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -88,15 +89,15 @@ function scanLetter() {
 
     Tesseract.recognize(canvas, 'eng').then(({ data: { text } }) => {
 
-        let cleanText = text.replace(/\n/g, " ").trim();
+        let cleaned = text.replace(/\n/g, " ").trim();
 
-        // Name: first two words only
-        let words = cleanText.split(/\s+/);
-        nameValue = words.slice(0, 2).join(" ");
+        // First 2 words only
+        let words = cleaned.split(/\s+/);
+        nameVal = words.slice(0, 2).join(" ");
 
-        // Indian Pincode (6 digits)
-        let pinMatch = cleanText.match(/\b\d{6}\b/);
-        pinValue = pinMatch ? pinMatch[0] : "";
+        // Indian Pincode
+        let pinMatch = cleaned.match(/\b\d{6}\b/);
+        pinVal = pinMatch ? pinMatch[0] : "";
 
         addRow();
     });
@@ -104,24 +105,24 @@ function scanLetter() {
 
 // Add row
 function addRow() {
-    if (!barcodeValue) {
-        alert("Scan barcode first");
+    if (!barcodeVal) {
+        alert("Please scan barcode first");
         return;
     }
 
     let row = `
     <tr>
-        <td>${slno++}</td>
-        <td>${barcodeValue}</td>
-        <td>${nameValue}</td>
-        <td>${pinValue}</td>
+        <td>${sl++}</td>
+        <td>${barcodeVal}</td>
+        <td>${nameVal}</td>
+        <td>${pinVal}</td>
     </tr>`;
 
-    document.getElementById("tableBody").innerHTML += row;
+    document.getElementById("tbody").innerHTML += row;
 
-    barcodeValue = "";
-    nameValue = "";
-    pinValue = "";
+    barcodeVal = "";
+    nameVal = "";
+    pinVal = "";
 }
 </script>
 
