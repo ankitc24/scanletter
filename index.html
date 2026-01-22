@@ -2,67 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Name & Pincode Table Scanner</title>
+<title>Letter Name & Pincode Reader</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    padding: 10px;
-}
-
-video {
-    width: 100%;
-    border: 2px solid black;
-    margin-bottom: 10px;
-}
-
-button {
-    width: 100%;
-    padding: 10px;
-    margin-top: 6px;
-    font-size: 16px;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-}
-
-th, td {
-    border: 1px solid black;
-    padding: 8px;
-    text-align: center;
-}
-
-th {
-    background-color: #f2f2f2;
-}
+body { font-family: Arial, sans-serif; padding: 10px; }
+video { width: 100%; border: 2px solid black; }
+button { width: 100%; padding: 10px; margin-top: 6px; font-size: 16px; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { border: 1px solid black; padding: 8px; text-align: center; }
+th { background-color: #f2f2f2; }
 </style>
 </head>
 
 <body>
 
-<h3>📄 Letter Name & Pincode Reader (Tabular)</h3>
+<h3>📄 Letter Scanner (English Name after “प्रति,”)</h3>
 
 <video id="video" autoplay playsinline muted></video>
 
 <button onclick="startCamera()">Start Camera</button>
-<button onclick="scanLetter()">Scan Letter & Add to Table</button>
+<button onclick="scanLetter()">Scan Letter</button>
 
 <table>
 <thead>
 <tr>
     <th>Sl No</th>
-    <th>Name (First 2 Words)</th>
+    <th>Name (2 words)</th>
     <th>Pincode</th>
 </tr>
 </thead>
-<tbody id="tableBody">
-</tbody>
+<tbody id="tableBody"></tbody>
 </table>
 
 <canvas id="canvas" style="display:none;"></canvas>
@@ -81,7 +53,7 @@ async function startCamera() {
     await video.play();
 }
 
-// Scan letter using OCR
+// OCR scan
 function scanLetter() {
     if (!stream) {
         alert("Please start camera first");
@@ -91,30 +63,39 @@ function scanLetter() {
     const canvas = document.getElementById("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
 
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    Tesseract.recognize(canvas, "hin+eng").then(({ data: { text } }) => {
 
-    Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+        let lines = text
+            .split("\n")
+            .map(l => l.trim())
+            .filter(l => l !== "");
 
-        let cleanedText = text.replace(/\n/g, " ").trim();
+        let name = "";
 
-        // Name: first two words only
-        let words = cleanedText.split(/\s+/);
-        let name = words.slice(0, 2).join(" ");
+        for (let i = 0; i < lines.length; i++) {
+            if (/प्रति/.test(lines[i]) && lines[i + 1]) {
+                // Extract only English words from next line
+                let englishWords = lines[i + 1].match(/[A-Z]+/gi);
+                if (englishWords) {
+                    name = englishWords.slice(0, 2).join(" ");
+                }
+                break;
+            }
+        }
 
-        // Pincode: 6 digits
-        let pinMatch = cleanedText.match(/\b\d{6}\b/);
+        // Extract 6-digit pincode
+        let pinMatch = text.match(/\b\d{6}\b/);
         let pincode = pinMatch ? pinMatch[0] : "";
 
         addRow(name, pincode);
     });
 }
 
-// Add data to table
+// Add row to table
 function addRow(name, pincode) {
-    const tableBody = document.getElementById("tableBody");
-
+    const tbody = document.getElementById("tableBody");
     const row = document.createElement("tr");
 
     row.innerHTML = `
@@ -123,7 +104,7 @@ function addRow(name, pincode) {
         <td>${pincode}</td>
     `;
 
-    tableBody.appendChild(row);
+    tbody.appendChild(row);
 }
 </script>
 
