@@ -5,11 +5,13 @@
 <title>India Post Letter Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- ZXing -->
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 body { font-family: Arial; padding: 10px; }
-video { width: 100%; border: 1px solid #000; }
+video { width: 100%; border: 2px solid black; }
 button { width: 100%; padding: 10px; margin-top: 8px; }
 table { width: 100%; border-collapse: collapse; margin-top: 15px; }
 th, td { border: 1px solid black; padding: 6px; text-align: center; }
@@ -19,18 +21,18 @@ th { background: #eee; }
 
 <body>
 
-<h3>📮 India Post Auto Barcode Scanner</h3>
+<h3>📮 India Post Barcode & Letter Scanner</h3>
 
-<video id="video" autoplay playsinline></video>
+<video id="video"></video>
 
-<button onclick="startIndiaPostScan()">Auto Scan India Post Barcode</button>
+<button onclick="startBarcode()">Scan India Post Barcode</button>
 <button onclick="scanLetter()">Scan Letter (Name & Pincode)</button>
 
 <table>
 <thead>
 <tr>
 <th>Sl No</th>
-<th>India Post Barcode</th>
+<th>Barcode</th>
 <th>Name</th>
 <th>Pincode</th>
 </tr>
@@ -42,87 +44,70 @@ th { background: #eee; }
 
 <script>
 let sl = 1;
-let barcode = "";
+let barcodeVal = "";
 let nameVal = "";
 let pinVal = "";
 
-const video = document.getElementById("video");
+const codeReader = new ZXing.BrowserBarcodeReader();
+const indiaPostRegex = /^[A-Z]{2}[0-9]{9}IN$/;
 
-// Start camera
-navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-}).then(stream => video.srcObject = stream);
-
-// Auto detect India Post barcode
-async function startIndiaPostScan() {
-
-    if (!("BarcodeDetector" in window)) {
-        alert("Barcode scanning not supported on this browser");
-        return;
-    }
-
-    const detector = new BarcodeDetector({
-        formats: ["code_128"]
-    });
-
-    const indiaPostRegex = /^[A-Z]{2}[0-9]{9}IN$/;
-
-    alert("Point camera towards India Post barcode");
-
-    const scanInterval = setInterval(async () => {
-        const detected = await detector.detect(video);
-
-        if (detected.length > 0) {
-            let value = detected[0].rawValue.toUpperCase();
-
-            if (indiaPostRegex.test(value)) {
-                barcode = value;
-                clearInterval(scanInterval);
-                alert("India Post Barcode Detected:\n" + barcode);
+// Start barcode scanning
+function startBarcode() {
+    codeReader.decodeFromVideoDevice(
+        null,
+        'video',
+        (result, err) => {
+            if (result) {
+                let code = result.text.toUpperCase();
+                if (indiaPostRegex.test(code)) {
+                    barcodeVal = code;
+                    codeReader.reset();
+                    alert("India Post Barcode Detected:\n" + barcodeVal);
+                }
             }
         }
-    }, 400);
+    );
 }
 
-// OCR Scan
+// OCR scanning
 function scanLetter() {
+    const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
 
     Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+        let clean = text.replace(/\n/g, " ").trim();
 
-        let cleaned = text.replace(/\n/g, " ").trim();
-
-        // Only first two words for Name
-        let words = cleaned.split(/\s+/);
+        // First two words only
+        let words = clean.split(/\s+/);
         nameVal = words.slice(0, 2).join(" ");
 
-        // Indian pincode
-        let pinMatch = cleaned.match(/\b\d{6}\b/);
-        pinVal = pinMatch ? pinMatch[0] : "";
+        // Indian Pincode
+        let pin = clean.match(/\b\d{6}\b/);
+        pinVal = pin ? pin[0] : "";
 
         addRow();
     });
 }
 
-// Add row to table
+// Add table row
 function addRow() {
-    if (!barcode) {
-        alert("Scan India Post barcode first");
+    if (!barcodeVal) {
+        alert("Please scan barcode first");
         return;
     }
 
     document.getElementById("tbody").innerHTML += `
     <tr>
         <td>${sl++}</td>
-        <td>${barcode}</td>
+        <td>${barcodeVal}</td>
         <td>${nameVal}</td>
         <td>${pinVal}</td>
     </tr>`;
 
-    barcode = "";
+    barcodeVal = "";
     nameVal = "";
     pinVal = "";
 }
