@@ -5,7 +5,6 @@
 <title>India Post Letter Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- ZXing -->
 <script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
@@ -23,8 +22,9 @@ th { background: #eee; }
 
 <h3>📮 India Post Barcode & Letter Scanner</h3>
 
-<video id="video"></video>
+<video id="video" autoplay playsinline muted></video>
 
+<button onclick="startCamera()">Start Camera</button>
 <button onclick="startBarcode()">Scan India Post Barcode</button>
 <button onclick="scanLetter()">Scan Letter (Name & Pincode)</button>
 
@@ -47,37 +47,56 @@ let sl = 1;
 let barcodeVal = "";
 let nameVal = "";
 let pinVal = "";
+let stream = null;
 
+const video = document.getElementById("video");
 const codeReader = new ZXing.BrowserBarcodeReader();
 const indiaPostRegex = /^[A-Z]{2}[0-9]{9}IN$/;
 
-// Start barcode scanning
-function startBarcode() {
-    codeReader.decodeFromVideoDevice(
-        null,
-        'video',
-        (result, err) => {
-            if (result) {
-                let code = result.text.toUpperCase();
-                if (indiaPostRegex.test(code)) {
-                    barcodeVal = code;
-                    codeReader.reset();
-                    alert("India Post Barcode Detected:\n" + barcodeVal);
-                }
-            }
-        }
-    );
+// 🔹 Start camera manually (IMPORTANT)
+async function startCamera() {
+    stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+    });
+    video.srcObject = stream;
+    await video.play();
 }
 
-// OCR scanning
+// 🔹 Barcode scanning
+function startBarcode() {
+    if (!stream) {
+        alert("Please start camera first");
+        return;
+    }
+
+    codeReader.decodeFromVideoElement(video, (result, err) => {
+        if (result) {
+            let code = result.text.toUpperCase();
+            if (indiaPostRegex.test(code)) {
+                barcodeVal = code;
+                codeReader.reset();
+                alert("India Post Barcode Detected:\n" + barcodeVal);
+            }
+        }
+    });
+}
+
+// 🔹 Letter OCR scanning
 function scanLetter() {
-    const video = document.getElementById("video");
+    if (!stream) {
+        alert("Please start camera first");
+        return;
+    }
+
     const canvas = document.getElementById("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+
         let clean = text.replace(/\n/g, " ").trim();
 
         // First two words only
@@ -92,10 +111,10 @@ function scanLetter() {
     });
 }
 
-// Add table row
+// 🔹 Add row
 function addRow() {
     if (!barcodeVal) {
-        alert("Please scan barcode first");
+        alert("Scan barcode first");
         return;
     }
 
