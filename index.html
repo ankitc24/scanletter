@@ -86,4 +86,62 @@ let sl = 1;
 let stream = null;
 const video = document.getElementById("video");
 
-async function startCamer
+async function startCamera() {
+    stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+    });
+    video.srcObject = stream;
+}
+
+// Scan only a THIN horizontal strip
+function scan() {
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
+    // VERY THIN STRIP (height ≈ 10% of video)
+    const cropW = vw * 0.8;
+    const cropH = vh * 0.12;
+    const cropX = (vw - cropW) / 2;
+    const cropY = (vh - cropH) / 2;
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+
+        let words = text.match(/[A-Z]+/gi);
+        let name = words ? words.slice(0, 2).join(" ") : "";
+
+        if (name) addRow(name);
+    });
+}
+
+function addRow(name) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td>${sl++}</td>
+        <td contenteditable="true">${name}</td>
+        <td>
+            <button class="delete-btn"
+                onclick="this.closest('tr').remove()">Delete</button>
+        </td>
+    `;
+    document.getElementById("tbody").prepend(tr);
+}
+
+function exportExcel() {
+    const wb = XLSX.utils.table_to_book(
+        document.querySelector("table"),
+        { sheet: "Names" }
+    );
+    XLSX.writeFile(wb, "Name_List.xlsx");
+}
+</script>
+
+</body>
+</html>
