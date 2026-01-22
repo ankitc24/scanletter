@@ -2,88 +2,118 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Letter Name & Pincode Reader</title>
+<title>Name & Pincode Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 body { font-family: Arial, sans-serif; padding: 10px; }
-video { width: 100%; border: 2px solid black; }
-button { width: 100%; padding: 10px; margin-top: 6px; font-size: 16px; }
-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-th, td { border: 1px solid black; padding: 8px; text-align: center; }
-th { background-color: #f2f2f2; }
+
+#cameraBox {
+    width: 100%;
+    max-width: 320px;
+    height: 180px;
+    border: 3px solid red;
+    margin: auto;
+    position: relative;
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+    font-size: 16px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th, td {
+    border: 1px solid black;
+    padding: 8px;
+    text-align: center;
+}
+
+th {
+    background-color: #f2f2f2;
+}
 </style>
 </head>
 
 <body>
 
-<h3>📄 Letter Scanner (English Name after “प्रति,”)</h3>
+<h3 align="center">📷 Scan ONLY Name & Pincode</h3>
 
-<video id="video" autoplay playsinline muted></video>
+<p align="center">
+Place <b>Name</b> and <b>Pincode</b> inside the red box
+</p>
+
+<div id="cameraBox">
+    <video id="video" autoplay playsinline muted></video>
+</div>
 
 <button onclick="startCamera()">Start Camera</button>
-<button onclick="scanLetter()">Scan Letter</button>
+<button onclick="scan()">Scan</button>
 
 <table>
 <thead>
 <tr>
     <th>Sl No</th>
-    <th>Name (2 words)</th>
+    <th>Name (First 2 words)</th>
     <th>Pincode</th>
 </tr>
 </thead>
-<tbody id="tableBody"></tbody>
+<tbody id="tbody"></tbody>
 </table>
 
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
-let slNo = 1;
+let sl = 1;
 let stream = null;
 const video = document.getElementById("video");
 
-// Start camera
 async function startCamera() {
     stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" }
     });
     video.srcObject = stream;
-    await video.play();
 }
 
-// OCR scan
-function scanLetter() {
-    if (!stream) {
-        alert("Please start camera first");
-        return;
-    }
-
+// Capture ONLY center area
+function scan() {
     const canvas = document.getElementById("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
+    const ctx = canvas.getContext("2d");
 
-    Tesseract.recognize(canvas, "hin+eng").then(({ data: { text } }) => {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
 
-        let lines = text
-            .split("\n")
-            .map(l => l.trim())
-            .filter(l => l !== "");
+    // Crop center (40% width, 40% height)
+    const cropW = vw * 0.6;
+    const cropH = vh * 0.6;
+    const cropX = (vw - cropW) / 2;
+    const cropY = (vh - cropH) / 2;
 
-        let name = "";
+    canvas.width = cropW;
+    canvas.height = cropH;
 
-        for (let i = 0; i < lines.length; i++) {
-            if (/प्रति/.test(lines[i]) && lines[i + 1]) {
-                // Extract only English words from next line
-                let englishWords = lines[i + 1].match(/[A-Z]+/gi);
-                if (englishWords) {
-                    name = englishWords.slice(0, 2).join(" ");
-                }
-                break;
-            }
-        }
+    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
+
+        // Extract first two English words
+        let words = text.match(/[A-Z]+/gi);
+        let name = words ? words.slice(0, 2).join(" ") : "";
 
         // Extract 6-digit pincode
         let pinMatch = text.match(/\b\d{6}\b/);
@@ -93,18 +123,14 @@ function scanLetter() {
     });
 }
 
-// Add row to table
 function addRow(name, pincode) {
-    const tbody = document.getElementById("tableBody");
-    const row = document.createElement("tr");
-
-    row.innerHTML = `
-        <td>${slNo++}</td>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+        <td>${sl++}</td>
         <td>${name}</td>
         <td>${pincode}</td>
     `;
-
-    tbody.appendChild(row);
+    document.getElementById("tbody").appendChild(tr);
 }
 </script>
 
