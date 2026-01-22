@@ -5,23 +5,16 @@
 <title>India Post Envelope Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
-<!-- Excel Export -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <style>
-body {
-    font-family: Arial, sans-serif;
-    padding: 10px;
-}
+body { font-family: Arial, sans-serif; padding: 10px; }
 
 #cameraBox {
     width: 100%;
     height: 220px;
     border: 3px solid #1a73e8;
-    margin: auto;
 }
 
 video {
@@ -49,16 +42,13 @@ th, td {
     text-align: center;
 }
 
-th {
-    background: #f2f2f2;
-}
+th { background: #f2f2f2; }
 
 .delete-btn {
     background: red;
     color: white;
     border: none;
     padding: 4px 8px;
-    cursor: pointer;
 }
 </style>
 </head>
@@ -66,13 +56,13 @@ th {
 <body>
 
 <h3 align="center">📮 India Post Envelope Scanner</h3>
-<p align="center">Keep <b>प्रति, Name & Pincode</b> visible</p>
+<p align="center">Keep address area clearly visible</p>
 
 <div id="cameraBox">
     <video id="video" autoplay playsinline muted></video>
 </div>
 
-<button onclick="startCamera()">Start Camera (Back)</button>
+<button onclick="startCamera()">Start Back Camera</button>
 <button onclick="scan()">Scan Envelope</button>
 <button onclick="exportExcel()">Export to Excel</button>
 
@@ -94,28 +84,21 @@ th {
 let sl = 1;
 const video = document.getElementById("video");
 
-// 🔥 FORCE BACK CAMERA
+// FORCE BACK CAMERA
 async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                facingMode: { exact: "environment" }
-            }
+            video: { facingMode: { exact: "environment" } }
         });
         video.srcObject = stream;
-    } catch (e) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" }
-            });
-            video.srcObject = stream;
-        } catch (err) {
-            alert("Back camera not accessible. Allow camera permission.");
-        }
+    } catch {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" }
+        });
+        video.srcObject = stream;
     }
 }
 
-// 📸 SCAN ENVELOPE
 function scan() {
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -129,28 +112,28 @@ function scan() {
         let lines = text
             .split("\n")
             .map(l => l.trim())
-            .filter(l => l !== "");
+            .filter(l => l);
 
         let name = "";
         let pincode = "";
 
-        // Extract NAME (first English line after "प्रति")
-        for (let i = 0; i < lines.length; i++) {
-            if (/प्रति/.test(lines[i]) && lines[i + 1]) {
-                let words = lines[i + 1].match(/[A-Z]+/gi);
-                if (words && words.length >= 2) {
-                    name = words.slice(0, 2).join(" ");
-                }
+        // ✅ FIND NAME: first clean English line (no digits, 2+ words)
+        for (let line of lines) {
+            if (
+                /^[A-Z ]{6,}$/.test(line) &&   // only letters & spaces
+                line.split(" ").length >= 2     // at least 2 words
+            ) {
+                name = line.split(" ").slice(0, 2).join(" ");
                 break;
             }
         }
 
-        // Extract PINCODE (6-digit)
+        // ✅ FIND PINCODE
         let pinMatch = text.match(/\b\d{6}\b/);
         if (pinMatch) pincode = pinMatch[0];
 
         if (!name && !pincode) {
-            alert("Name or Pincode not detected. Adjust envelope & retry.");
+            alert("Name or Pincode not detected. Improve lighting.");
             return;
         }
 
@@ -158,7 +141,6 @@ function scan() {
     });
 }
 
-// ➕ ADD ROW (LATEST ON TOP)
 function addRow(name, pincode) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -166,14 +148,12 @@ function addRow(name, pincode) {
         <td contenteditable="true">${name}</td>
         <td contenteditable="true">${pincode}</td>
         <td>
-            <button class="delete-btn"
-                onclick="this.closest('tr').remove()">Delete</button>
+            <button class="delete-btn" onclick="this.closest('tr').remove()">Delete</button>
         </td>
     `;
     document.getElementById("tbody").prepend(tr);
 }
 
-// 📤 EXPORT TO EXCEL
 function exportExcel() {
     const wb = XLSX.utils.table_to_book(
         document.querySelector("table"),
