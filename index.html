@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Name Scanner (Ultra Small)</title>
+<title>Name & Pincode Scanner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -12,8 +12,8 @@
 body { font-family: Arial, sans-serif; padding: 10px; }
 
 #cameraBox {
-    max-width: 350px;
-    height: 40px;              /* very small height */
+    max-width: 320px;
+    height: 180px;
     border: 3px solid red;
     margin: auto;
 }
@@ -26,7 +26,7 @@ video {
 
 button {
     width: 100%;
-    padding: 8px;
+    padding: 10px;
     margin-top: 6px;
     font-size: 15px;
 }
@@ -57,22 +57,23 @@ th { background: #f2f2f2; }
 
 <body>
 
-<h3 align="center">📏 Ultra Small Name Scanner</h3>
-<p align="center">Align ONLY the name inside red strip</p>
+<h3 align="center">📷 Name & Pincode Scanner</h3>
+<p align="center">Place ONLY name & pincode inside red box</p>
 
 <div id="cameraBox">
     <video id="video" autoplay playsinline muted></video>
 </div>
 
 <button onclick="startCamera()">Start Camera</button>
-<button onclick="scan()">Scan Name</button>
+<button onclick="scan()">Scan</button>
 <button onclick="exportExcel()">Export to Excel</button>
 
 <table>
 <thead>
 <tr>
     <th>Sl No</th>
-    <th>Name (2 words)</th>
+    <th>Name (Editable)</th>
+    <th>Pincode (Editable)</th>
     <th>Action</th>
 </tr>
 </thead>
@@ -93,7 +94,6 @@ async function startCamera() {
     video.srcObject = stream;
 }
 
-// Scan only a THIN horizontal strip
 function scan() {
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -101,15 +101,13 @@ function scan() {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
 
-    // VERY THIN STRIP (height ≈ 10% of video)
-    const cropW = vw * 0.8;
-    const cropH = vh * 0.12;
+    const cropW = vw * 0.6;
+    const cropH = vh * 0.6;
     const cropX = (vw - cropW) / 2;
     const cropY = (vh - cropH) / 2;
 
     canvas.width = cropW;
     canvas.height = cropH;
-
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
     Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
@@ -117,29 +115,31 @@ function scan() {
         let words = text.match(/[A-Z]+/gi);
         let name = words ? words.slice(0, 2).join(" ") : "";
 
-        if (name) addRow(name);
+        let pinMatch = text.match(/\b\d{6}\b/);
+        let pincode = pinMatch ? pinMatch[0] : "";
+
+        addRow(name, pincode);
     });
 }
 
-function addRow(name) {
+function addRow(name, pincode) {
+    const tbody = document.getElementById("tbody");
     const tr = document.createElement("tr");
+
     tr.innerHTML = `
         <td>${sl++}</td>
         <td contenteditable="true">${name}</td>
-        <td>
-            <button class="delete-btn"
-                onclick="this.closest('tr').remove()">Delete</button>
-        </td>
+        <td contenteditable="true">${pincode}</td>
+        <td><button class="delete-btn" onclick="this.closest('tr').remove()">Delete</button></td>
     `;
-    document.getElementById("tbody").prepend(tr);
+
+    tbody.prepend(tr); // latest entry on top
 }
 
 function exportExcel() {
-    const wb = XLSX.utils.table_to_book(
-        document.querySelector("table"),
-        { sheet: "Names" }
-    );
-    XLSX.writeFile(wb, "Name_List.xlsx");
+    const table = document.querySelector("table");
+    const wb = XLSX.utils.table_to_book(table, { sheet: "Scanned Letters" });
+    XLSX.writeFile(wb, "Letter_List.xlsx");
 }
 </script>
 
