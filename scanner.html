@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Letter Scanner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- QuaggaJS for Barcode -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+
+<!-- Tesseract.js for OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+<style>
+    body { font-family: Arial, sans-serif; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #000; padding: 6px; text-align: center; }
+    th { background: #f0f0f0; }
+    video { width: 100%; border: 1px solid #000; }
+    button { padding: 10px; margin-top: 10px; }
+</style>
+</head>
+
+<body>
+
+<h3>📷 Letter Barcode & Address Scanner</h3>
+
+<video id="camera" autoplay></video><br>
+
+<button onclick="startBarcode()">Scan Barcode</button>
+<button onclick="captureImage()">Scan Letter (Name & Pincode)</button>
+
+<table>
+    <thead>
+        <tr>
+            <th>Sl No</th>
+            <th>Barcode</th>
+            <th>Name</th>
+            <th>Pincode</th>
+        </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+</table>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+let slno = 1;
+let scannedBarcode = "";
+let scannedName = "";
+let scannedPincode = "";
+
+// Start camera
+navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+.then(stream => document.getElementById("camera").srcObject = stream);
+
+// Barcode Scanner
+function startBarcode() {
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#camera')
+        },
+        decoder: {
+            readers: ["code_128_reader", "ean_reader", "ean_8_reader"]
+        }
+    }, function (err) {
+        if (!err) Quagga.start();
+    });
+
+    Quagga.onDetected(data => {
+        scannedBarcode = data.codeResult.code;
+        Quagga.stop();
+        alert("Barcode Scanned: " + scannedBarcode);
+    });
+}
+
+// Capture image and OCR
+function captureImage() {
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+
+    Tesseract.recognize(canvas, 'eng').then(({ data: { text } }) => {
+        // Extract Name (simple logic)
+        let lines = text.split('\n').filter(l => l.trim() !== "");
+        scannedName = lines[0] || "";
+
+        // Extract Pincode (India – 6 digits)
+        let pinMatch = text.match(/\b\d{6}\b/);
+        scannedPincode = pinMatch ? pinMatch[0] : "";
+
+        addRow();
+    });
+}
+
+// Add row to table
+function addRow() {
+    if (!scannedBarcode) {
+        alert("Please scan barcode first");
+        return;
+    }
+
+    let row = `<tr>
+        <td>${slno++}</td>
+        <td>${scannedBarcode}</td>
+        <td>${scannedName}</td>
+        <td>${scannedPincode}</td>
+    </tr>`;
+
+    document.getElementById("tableBody").innerHTML += row;
+
+    scannedBarcode = "";
+    scannedName = "";
+    scannedPincode = "";
+}
+</script>
+
+</body>
+</html>
