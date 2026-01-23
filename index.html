@@ -56,7 +56,7 @@ th { background: #f2f2f2; }
 <body>
 
 <h3 align="center">📮 India Post Envelope Scanner</h3>
-<p align="center">Keep address area clearly visible</p>
+<p align="center">Ensure name & pincode are clearly visible</p>
 
 <div id="cameraBox">
     <video id="video" autoplay playsinline muted></video>
@@ -107,33 +107,26 @@ function scan() {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
 
-    Tesseract.recognize(canvas, "hin+eng").then(({ data: { text } }) => {
+    Tesseract.recognize(canvas, "eng").then(({ data: { text } }) => {
 
-        let lines = text
-            .split("\n")
-            .map(l => l.trim())
-            .filter(l => l);
+        // 🔹 Extract ALL words
+        let rawWords = text.match(/[A-Z]{2,}/gi) || [];
 
-        let name = "";
-        let pincode = "";
+        // 🔹 Remove address-like noise
+        let cleanWords = rawWords.filter(w =>
+            w.length >= 3 &&           // avoid short junk
+            !/\d/.test(w)              // no digits
+        );
 
-        // ✅ FIND NAME: first clean English line (no digits, 2+ words)
-        for (let line of lines) {
-            if (
-                /^[A-Z ]{6,}$/.test(line) &&   // only letters & spaces
-                line.split(" ").length >= 2     // at least 2 words
-            ) {
-                name = line.split(" ").slice(0, 2).join(" ");
-                break;
-            }
-        }
+        // 🔹 Pick first two words as NAME
+        let name = cleanWords.slice(0, 2).join(" ");
 
-        // ✅ FIND PINCODE
+        // 🔹 PINCODE
         let pinMatch = text.match(/\b\d{6}\b/);
-        if (pinMatch) pincode = pinMatch[0];
+        let pincode = pinMatch ? pinMatch[0] : "";
 
         if (!name && !pincode) {
-            alert("Name or Pincode not detected. Improve lighting.");
+            alert("Could not read name. Improve lighting & retry.");
             return;
         }
 
@@ -148,7 +141,8 @@ function addRow(name, pincode) {
         <td contenteditable="true">${name}</td>
         <td contenteditable="true">${pincode}</td>
         <td>
-            <button class="delete-btn" onclick="this.closest('tr').remove()">Delete</button>
+            <button class="delete-btn"
+                onclick="this.closest('tr').remove()">Delete</button>
         </td>
     `;
     document.getElementById("tbody").prepend(tr);
